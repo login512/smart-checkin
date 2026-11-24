@@ -1,0 +1,34 @@
+{
+  "name": "login512-smart-checkin",
+  "version": "1.0.0",
+  "description": "Open-Source Proof-of-Presence Smart Check-in & Login512 Reference Implementation (5 Industry Presets, Dynamic QR 5-8s + Optional Wi-Fi IP Allowlist, ML-DSA-65 PQC + Zero-Image Biometrics)",
+  "main": "src/server.js",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node --no-warnings src/server.js",
+    "dev": "node --no-warnings --watch src/server.js",
+    "test": "node --no-warnings --test tests/*.test.js",
+    "build:zips": "node --no-warnings scripts/build-preset-zips.js"
+  },
+  "keywords": [
+    "login512",
+    "smart-checkin",
+    "attendance",
+    "dynamic-qr",
+    "proof-of-presence",
+    "passwordless",
+    "biometric",
+    "passkey",
+    "post-quantum",
+    "ml-dsa-65"
+  ],
+  "dependencies": {
+    "@login512/server-sdk": "^1.0.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4"
+  }
+}

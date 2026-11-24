@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>First-Time Genesis Setup — Login512 Smart Check-in</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="cal-strip" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="brand">
+        <span class="brand-bars" aria-hidden="true">
+          <span style="background:#ef4444"></span><span style="background:#10b981"></span>
+          <span style="background:#3b82f6"></span><span style="background:#06b6d4"></span>
+          <span style="background:#ec4899"></span><span style="background:#f59e0b"></span>
+        </span>
+        <span>Login512 Smart Check-in</span>
+      </a>
+      <div class="nav-actions">
+        <span class="badge badge-sky">🚀 Genesis Mode</span>
+        <div id="langSlot"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 820px;">
+    <div id="envBanner" class="banner banner-warn hidden"></div>
+
+    <section id="lockedCard" class="card hidden" style="text-align:center; padding:36px 24px;">
+      <div style="font-size:40px; margin-bottom:10px;">🔒</div>
+      <h1 class="card-title" id="lockedTitle">โหมดตั้งค่าครั้งแรกถูกปิดล็อกถาวรแล้ว</h1>
+      <p class="card-sub" id="lockedSub">ระบบมีผู้ดูแลสูงสุด (Superadmin) เรียบร้อยแล้ว เพื่อความปลอดภัยไม่สามารถลงทะเบียนซ้ำผ่านหน้านี้ได้</p>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <a href="/kiosk" class="btn btn-primary" id="btnGoKiosk">📺 เปิดหน้าจอ Kiosk QR</a>
+        <a href="/admin" class="btn btn-secondary" id="btnGoAdmin">⚙️ เข้าสู่หลังบ้านแอดมิน</a>
+      </div>
+    </section>
+
+    <section id="setupCard" class="card hidden">
+      <div class="row-between" style="margin-bottom:12px;">
+        <span class="badge badge-green">🛡️ Zero Default Password (ไม่มี admin/1234)</span>
+        <span class="badge badge-sky">⚛️ NIST ML-DSA-65</span>
+      </div>
+      <h1 class="card-title" id="setupTitle">ตั้งค่าระบบครั้งแรก (First-Time Genesis Mode)</h1>
+      <p class="card-sub" id="setupSub">เลือก 1 ใน 5 วงการ กรอก One-Time Setup Key จากหน้าต่าง Terminal แล้วสแกนใบหน้าหรือลายนิ้วมือเพื่อสร้าง Superadmin คนแรก</p>
+
+      <div id="setupFeedback" class="banner hidden"></div>
+
+      <div class="field">
+        <label id="lblPickPreset">1. เลือกรูปแบบการใช้งาน (1 โค้ด รองรับ 5 วงการ — สลับภายหลังได้)</label>
+        <div id="presetGrid" class="preset-grid"></div>
+      </div>
+
+      <div class="two-col">
+        <div class="field">
+          <label for="inputSetupKey" id="lblSetupKey">2. One-Time Genesis Setup Key *</label>
+          <input id="inputSetupKey" class="input mono" type="text" placeholder="L512-SETUP-..." autocomplete="off">
+          <div class="hint" id="hintSetupKey">ดูได้จากหน้าต่าง Terminal ตอนสั่ง npm start หรือค่า GENESIS_SETUP_KEY ใน .env</div>
+        </div>
+        <div class="field">
+          <label for="inputAdminName" id="lblAdminName">3. ชื่อผู้ดูแลระบบ (Superadmin) *</label>
+          <input id="inputAdminName" class="input" type="text" value="Superadmin">
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="field">
+          <label for="inputOrgName" id="lblOrgName">4. ชื่อองค์กร / โรงเรียน / ร้านค้า</label>
+          <input id="inputOrgName" class="input" type="text">
+        </div>
+        <div class="field">
+          <label for="inputSiteName" id="lblSiteName">5. ชื่อจุดเช็กอินแรก (Kiosk Station)</label>
+          <input id="inputSiteName" class="input" type="text">
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-top:20px;">
+        <button type="button" id="btnClaimFace" class="btn btn-primary btn-full">📸 สแกนใบหน้าเป็น Superadmin</button>
+        <button type="button" id="btnClaimPasskey" class="btn btn-secondary btn-full">👆 แตะลายนิ้วมือ (Passkey) เป็น Superadmin</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/assets/i18n.js"></script>
+  <script>
+    (function () {
+      let state = { lang: SC.getLang('th'), presetId: 'classroom', presets: [], login512: null };
+
+      function showFeedback(type, msg) {
+        const el = document.getElementById('setupFeedback');
+        el.className = `banner banner-${type}`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+      }
+
+      function applyTexts() {
+        const l = state.lang;
+        document.documentElement.lang = l;
+        document.getElementById('lockedTitle').textContent = l === 'en' ? 'Genesis Setup Permanently Locked' : 'โหมดตั้งค่าครั้งแรกถูกปิดล็อกถาวรแล้ว';
+        document.getElementById('lockedSub').textContent = l === 'en'
+          ? 'A Superadmin is already registered. Initial bootstrap is permanently disabled for security.'
+          : 'ระบบมีผู้ดูแลสูงสุด (Superadmin) เรียบร้อยแล้ว เพื่อความปลอดภัยไม่สามารถลงทะเบียนซ้ำผ่านหน้านี้ได้';
+        document.getElementById('btnGoKiosk').textContent = l === 'en' ? '📺 Open Kiosk QR Screen' : '📺 เปิดหน้าจอ Kiosk QR';
+        document.getElementById('btnGoAdmin').textContent = l === 'en' ? '⚙️ Open Admin Console' : '⚙️ เข้าสู่หลังบ้านแอดมิน';
+        document.getElementById('setupTitle').textContent = l === 'en' ? 'First-Time Genesis Setup' : 'ตั้งค่าระบบครั้งแรก (First-Time Genesis Mode)';
+        document.getElementById('setupSub').textContent = l === 'en'
+          ? 'Choose 1 of 5 industry presets, paste your One-Time Setup Key from terminal, then enroll Face or Passkey as Superadmin.'
+          : 'เลือก 1 ใน 5 วงการ กรอก One-Time Setup Key จากหน้าต่าง Terminal แล้วสแกนใบหน้าหรือลายนิ้วมือเพื่อสร้าง Superadmin คนแรก';
+        document.getElementById('lblPickPreset').textContent = l === 'en' ? '1. Choose Industry Preset (5 built-in modes — switchable anytime)' : '1. เลือกรูปแบบการใช้งาน (1 โค้ด รองรับ 5 วงการ — สลับภายหลังได้)';
+        document.getElementById('lblSetupKey').textContent = l === 'en' ? '2. One-Time Genesis Setup Key *' : '2. One-Time Genesis Setup Key *';
+        document.getElementById('hintSetupKey').textContent = l === 'en' ? 'Printed once in terminal on first boot (or set via GENESIS_SETUP_KEY in .env)' : 'ดูได้จากหน้าต่าง Terminal ตอนสั่ง npm start หรือค่า GENESIS_SETUP_KEY ใน .env';
+        document.getElementById('lblAdminName').textContent = l === 'en' ? '3. Superadmin Display Name *' : '3. ชื่อผู้ดูแลระบบ (Superadmin) *';
+        document.getElementById('lblOrgName').textContent = l === 'en' ? '4. Organization / School / Venue Name' : '4. ชื่อองค์กร / โรงเรียน / ร้านค้า';
+        document.getElementById('lblSiteName').textContent = l === 'en' ? '5. First Check-In Station Name' : '5. ชื่อจุดเช็กอินแรก (Kiosk Station)';
+        document.getElementById('btnClaimFace').textContent = l === 'en' ? '📸 Enroll Face as Superadmin' : '📸 สแกนใบหน้าเป็น Superadmin';
+        document.getElementById('btnClaimPasskey').textContent = l === 'en' ? '👆 Enroll Passkey as Superadmin' : '👆 แตะลายนิ้วมือ (Passkey) เป็น Superadmin';
+        renderPresets();
+      }
+
+      function renderPresets() {
+        const grid = document.getElementById('presetGrid');
+        const l = state.lang;
+        grid.innerHTML = state.presets.map((p) => `
+          <button type="button" class="preset-card ${p.id === state.presetId ? 'active' : ''}" data-preset="${SC.escapeHtml(p.id)}">
+            <div class="preset-card-head"><span>${p.icon}</span><span>${SC.escapeHtml(p[l].shortName)}</span></div>
+            <div class="preset-card-desc">${SC.escapeHtml(p[l].tagline)}</div>
+          </button>
+        `).join('');
+        grid.querySelectorAll('.preset-card').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            state.presetId = btn.getAttribute('data-preset');
+            const chosen = state.presets.find((x) => x.id === state.presetId);
+            if (chosen) {
+              document.getElementById('inputOrgName').value = chosen[state.lang].defaultOrgName;
+              document.getElementById('inputSiteName').value = chosen[state.lang].defaultSiteName;
+            }
+            renderPresets();
+          });
+        });
+      }
+
+      async function claim(method) {
+        const setupKey = document.getElementById('inputSetupKey').value.trim();
+        const displayName = document.getElementById('inputAdminName').value.trim() || 'Superadmin';
+        const orgName = document.getElementById('inputOrgName').value.trim();
+        const siteName = document.getElementById('inputSiteName').value.trim();
+        if (!setupKey) {
+          showFeedback('err', state.lang === 'en' ? 'Please enter the One-Time Genesis Setup Key.' : 'กรุณากรอก One-Time Genesis Setup Key ก่อน');
+          return;
+        }
+        try {
+          showFeedback('info', state.lang === 'en' ? 'Validating Setup Key and minting Login512 enrollment token...' : 'กำลังตรวจ Setup Key และขอ Enrollment Token จาก Login512...');
+          const enr = await SC.apiJson('/api/setup/enroll-token', {
+            method: 'POST',
+            body: JSON.stringify({ setup_key: setupKey, display_name: displayName, admin_id: 'superadmin' }),
+          });
+          showFeedback('info', state.lang === 'en' ? 'Complete biometric verification in Login512...' : 'กรุณาสแกนยืนยันตัวตนผ่าน Login512...');
+          const authRes = await SC.runBiometricAuth({
+            login512Cfg: state.login512,
+            action: 'enroll',
+            method,
+            enrollmentToken: enr.enrollment_token,
+            externalUserId: enr.external_user_id,
+            mockSubject: enr.external_user_id,
+          });
+          await SC.apiJson('/api/setup/claim', {
+            method: 'POST',
+            body: JSON.stringify({
+              setup_key: setupKey,
+              token: authRes.token,
+              auth_method: method,
+              preset_id: state.presetId,
+              org_name: orgName,
+              site_name: siteName,
+              default_lang: state.lang,
+              display_name: displayName,
+            }),
+          });
+          showFeedback('ok', state.lang === 'en' ? '✅ Superadmin created & Genesis Mode permanently locked! Redirecting...' : '✅ สร้าง Superadmin สำเร็จและล็อกปิดโหมดติดตั้งถาวรแล้ว! กำลังพาไปหน้าหลังบ้าน...');
+          setTimeout(() => { window.location.href = '/admin'; }, 800);
+        } catch (err) {
+          showFeedback('err', `❌ ${SC.localizeError(err, state.lang)}`);
+        }
+      }
+
+      async function boot() {
+        const data = await SC.apiJson('/api/setup/status');
+        state.presets = data.presets || [];
+        state.presetId = data.preset_id || 'classroom';
+        state.lang = SC.getLang(data.default_lang || 'th');
+        state.login512 = data.login512;
+
+        const envBanner = document.getElementById('envBanner');
+        if (state.login512.demoMockAuth) {
+          envBanner.textContent = `⚠️ ${SC.t('mock_mode_warn', state.lang)}`;
+          envBanner.classList.remove('hidden');
+        } else if (!state.login512.configured) {
+          envBanner.textContent = `⚠️ ${SC.t('needs_keys_warn', state.lang)}`;
+          envBanner.classList.remove('hidden');
+        }
+
+        SC.renderLangToggle(document.getElementById('langSlot'), state.lang, (next) => {
+          state.lang = next;
+          applyTexts();
+        });
+
+        if (data.locked) {
+          document.getElementById('lockedCard').classList.remove('hidden');
+        } else {
+          document.getElementById('setupCard').classList.remove('hidden');
+          const p = state.presets.find((x) => x.id === state.presetId) || state.presets[0];
+          if (p) {
+            document.getElementById('inputOrgName').value = p[state.lang].defaultOrgName;
+            document.getElementById('inputSiteName').value = p[state.lang].defaultSiteName;
+          }
+        }
+        applyTexts();
+        document.getElementById('btnClaimFace').addEventListener('click', () => claim('face'));
+        document.getElementById('btnClaimPasskey').addEventListener('click', () => claim('passkey'));
+      }
+
+      boot().catch((e) => showFeedback('err', e.message));
+    })();
+  </script>
+</body>
+</html>

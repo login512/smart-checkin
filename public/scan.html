@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Check-In — Login512 Smart Check-in</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="cal-strip" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/kiosk" class="brand">
+        <span class="brand-bars" aria-hidden="true">
+          <span style="background:#ef4444"></span><span style="background:#10b981"></span>
+          <span style="background:#3b82f6"></span><span style="background:#06b6d4"></span>
+          <span style="background:#ec4899"></span><span style="background:#f59e0b"></span>
+        </span>
+        <span id="orgBrand">Login512 Smart Check-in</span>
+      </a>
+      <div class="nav-actions">
+        <div id="langSlot"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container-narrow">
+    <div id="demoBanner" class="banner banner-warn hidden"></div>
+
+    <!-- Mode A: Invite Self-Enrollment -->
+    <section id="inviteCard" class="card hidden">
+      <span class="badge badge-purple" style="margin-bottom:10px;" id="invBadge">➕ ลงทะเบียนสมาชิกใหม่</span>
+      <h1 class="card-title" id="invTitle">ลงทะเบียนชีวมิติครั้งแรก</h1>
+      <p class="card-sub" id="invSub">ยืนยันตัวตนครั้งเดียวด้วยใบหน้าหรือลายนิ้วมือ (ระบบไม่เก็บรูปใบหน้าจริง)</p>
+
+      <div id="invFeedback" class="banner hidden"></div>
+
+      <div class="field">
+        <label for="invName" id="lblInvName">ชื่อ-นามสกุล *</label>
+        <input id="invName" class="input" type="text">
+      </div>
+      <div class="field">
+        <label for="invCode" id="lblInvCode">รหัสประจำตัว</label>
+        <input id="invCode" class="input mono" type="text">
+      </div>
+      <div class="field">
+        <label for="invGroup" id="lblInvGroup">แผนก / ชั้นเรียน</label>
+        <input id="invGroup" class="input" type="text">
+      </div>
+
+      <div class="stack" style="margin-top:18px;">
+        <button type="button" id="btnInvFace" class="btn btn-primary btn-full">📸 ลงทะเบียนด้วยใบหน้า</button>
+        <button type="button" id="btnInvPasskey" class="btn btn-secondary btn-full">👆 ลงทะเบียนด้วยลายนิ้วมือ / Passkey</button>
+      </div>
+    </section>
+
+    <!-- Mode B: Active QR Check-In -->
+    <section id="checkinCard" class="card hidden">
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+        <span class="badge badge-green" id="qrValidBadge">✓ QR สด</span>
+        <span class="badge badge-sky" id="ipStatusBadge">🌐 IP</span>
+        <span class="badge">⚛️ ML-DSA-65</span>
+      </div>
+
+      <h1 class="card-title" id="chkStationTitle">...</h1>
+      <p class="card-sub" id="chkSub">กดยืนยันตัวตนด้วยใบหน้าหรือลายนิ้วมือเพื่อบันทึกการเช็กอินทันที</p>
+
+      <div id="chkFeedback" class="banner hidden"></div>
+
+      <div id="actionRow" class="field hidden">
+        <label id="lblAction">ประเภทการลงเวลา</label>
+        <div class="two-col">
+          <button type="button" id="optActionIn" class="btn btn-emerald btn-full">เข้างาน</button>
+          <button type="button" id="optActionOut" class="btn btn-secondary btn-full">เลิกงาน</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="chkNote" id="lblNote">หมายเหตุ (ไม่บังคับ)</label>
+        <input id="chkNote" class="input" type="text" maxlength="200">
+      </div>
+
+      <div id="mockUserRow" class="field hidden">
+        <label for="mockSubInput">Demo Mock External User ID (DEMO_MOCK_AUTH only)</label>
+        <input id="mockSubInput" class="input mono" type="text" value="usr_student_01">
+      </div>
+
+      <div class="stack" style="margin-top:16px;">
+        <button type="button" id="btnScanFace" class="btn btn-primary btn-full">📸 ยืนยันตัวตนด้วยใบหน้า (Login512)</button>
+        <button type="button" id="btnScanPasskey" class="btn btn-secondary btn-full">👆 ใช้ลายนิ้วมือ / Passkey สำรอง</button>
+      </div>
+    </section>
+
+    <!-- Mode B Result: Tamper-Proof Receipt -->
+    <section id="receiptCard" class="card hidden" style="text-align:center;">
+      <div style="font-size:48px; margin-bottom:8px;">✅</div>
+      <h1 class="card-title" id="rcptTitle" style="font-size:21px; color:#6ee7b7;">เช็กอินสำเร็จ!</h1>
+      <p class="card-sub" id="rcptSub">ยืนยันตัวตนเรียบร้อยและบันทึกลงระบบแล้ว</p>
+
+      <div style="text-align:left; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:14px; font-size:13px; margin-bottom:18px;" id="rcptDetails"></div>
+
+      <a href="/kiosk" class="btn btn-secondary btn-full" id="btnBackKiosk">กลับหน้าจอ Kiosk</a>
+    </section>
+
+    <!-- Mode C: Error / Manual Guide -->
+    <section id="guideCard" class="card hidden">
+      <h1 class="card-title" id="guideTitle">ส่อง Dynamic QR จากหน้าจอ Kiosk</h1>
+      <div id="guideBanner" class="banner banner-err hidden"></div>
+      <p class="card-sub" id="guideSub">เพื่อป้องกันการฝากสแกนและการปลอมพิกัด กรุณาใช้กล้องมือถือส่อง QR Code ที่หมุนเปลี่ยนทุก 5–8 วินาทีบนหน้าจอ Kiosk ณ สถานที่จริง</p>
+
+      <div class="field">
+        <label for="manualInviteInput" id="lblManualInvite">หรือกรอกรหัสเชิญสมาชิกใหม่ (Invite Code)</label>
+        <div style="display:flex; gap:8px;">
+          <input id="manualInviteInput" class="input mono" type="text" placeholder="INV-...">
+          <button type="button" id="btnOpenInvite" class="btn btn-primary">เปิด</button>
+        </div>
+      </div>
+
+      <a href="/kiosk" class="btn btn-secondary btn-full" id="btnGuideKiosk">📺 เปิดหน้าจอ Kiosk QR</a>
+    </section>
+  </main>
+
+  <script src="/assets/i18n.js"></script>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      let state = {
+        lang: SC.getLang('th'),
+        config: null,
+        ticket: null,
+        invite: null,
+        action: 'check_in',
+      };
+
+      function setBanner(id, type, msg) {
+        const el = document.getElementById(id);
+        el.className = `banner banner-${type}`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+      }
+
+      function applyTexts() {
+        const l = state.lang;
+        document.documentElement.lang = l;
+        const p = state.config.preset[l];
+        document.getElementById('orgBrand').textContent = state.config.org_name;
+        document.getElementById('btnScanFace').textContent = SC.t('btn_face_login', l);
+        document.getElementById('btnScanPasskey').textContent = SC.t('btn_passkey_login', l);
+        document.getElementById('btnInvFace').textContent = SC.t('btn_face_enroll', l);
+        document.getElementById('btnInvPasskey').textContent = SC.t('btn_passkey_enroll', l);
+        document.getElementById('lblInvName').textContent = l === 'en' ? 'Full Name *' : 'ชื่อ-นามสกุล *';
+        document.getElementById('lblInvCode').textContent = p.memberCodeLabel;
+        document.getElementById('lblInvGroup').textContent = p.groupLabel;
+        document.getElementById('invCode').placeholder = p.memberCodePlaceholder;
+        document.getElementById('invGroup').placeholder = p.groupPlaceholder;
+        document.getElementById('chkNote').placeholder = p.notePlaceholder;
+        document.getElementById('lblNote').textContent = l === 'en' ? 'Note (optional)' : 'หมายเหตุ (ไม่บังคับ)';
+        document.getElementById('optActionIn').textContent = p.actionInLabel;
+        document.getElementById('optActionOut').textContent = p.actionOutLabel;
+        document.getElementById('lblAction').textContent = l === 'en' ? 'Check-In Action' : 'ประเภทการลงเวลา';
+        document.getElementById('chkSub').textContent = l === 'en'
+          ? 'Verify with Face or Passkey to record cryptographically signed attendance.'
+          : 'กดยืนยันตัวตนด้วยใบหน้าหรือลายนิ้วมือเพื่อบันทึกการเช็กอินทันที';
+        document.getElementById('invTitle').textContent = l === 'en' ? `Enroll ${p.memberLabel}` : `ลงทะเบียน${p.memberLabel}ครั้งแรก`;
+        document.getElementById('invSub').textContent = l === 'en'
+          ? 'Enroll once with Face or Passkey — zero biometric photos are ever stored.'
+          : 'ลงทะเบียนครั้งเดียวด้วยใบหน้าหรือลายนิ้วมือ (ระบบไม่เก็บรูปใบหน้าจริง)';
+        document.getElementById('rcptTitle').textContent = l === 'en' ? 'Check-In Verified!' : 'เช็กอินสำเร็จ!';
+        document.getElementById('btnBackKiosk').textContent = l === 'en' ? 'Back to Kiosk Screen' : 'กลับหน้าจอ Kiosk';
+        document.getElementById('guideTitle').textContent = l === 'en' ? 'Scan Live Dynamic QR at Kiosk' : 'ส่อง Dynamic QR จากหน้าจอ Kiosk';
+        document.getElementById('guideSub').textContent = l === 'en'
+          ? 'To prevent remote spoofing and fake GPS, scan the live rotating QR (5-8s) displayed at the physical station.'
+          : 'เพื่อป้องกันการฝากสแกนและการปลอมพิกัด กรุณาใช้กล้องมือถือส่อง QR Code ที่หมุนเปลี่ยนทุก 5–8 วินาทีบนหน้าจอ Kiosk ณ สถานที่จริง';
+        document.getElementById('lblManualInvite').textContent = l === 'en' ? 'Or enter a Member Invite Code' : 'หรือกรอกรหัสเชิญสมาชิกใหม่ (Invite Code)';
+        document.getElementById('btnOpenInvite').textContent = l === 'en' ? 'Open' : 'เปิด';
+        document.getElementById('btnGuideKiosk').textContent = l === 'en' ? '📺 Open Kiosk QR Screen' : '📺 เปิดหน้าจอ Kiosk QR';
+      }
+
+      function updateActionButtons() {
+        document.getElementById('optActionIn').className = state.action === 'check_in' ? 'btn btn-emerald btn-full' : 'btn btn-secondary btn-full';
+        document.getElementById('optActionOut').className = state.action === 'check_out' ? 'btn btn-primary btn-full' : 'btn btn-secondary btn-full';
+      }
+
+      async function completeCheckin(method) {
+        if (!state.ticket) return;
+        try {
+          setBanner('chkFeedback', 'info', state.lang === 'en' ? 'Opening Login512 verification...' : 'กำลังเปิดหน้าต่างยืนยันตัวตน Login512...');
+          const mockSub = document.getElementById('mockSubInput')?.value.trim() || 'usr_demo_01';
+          const authRes = await SC.runBiometricAuth({
+            login512Cfg: state.config.login512,
+            action: 'login',
+            method,
+            nonce: state.ticket.expected_nonce,
+            mockSubject: mockSub,
+          });
+          setBanner('chkFeedback', 'info', state.lang === 'en' ? 'Verifying ML-DSA-65 token on server...' : 'กำลังตรวจสอบลายเซ็น ML-DSA-65 บนเซิร์ฟเวอร์...');
+          const res = await SC.apiJson('/api/checkin/complete', {
+            method: 'POST',
+            body: JSON.stringify({
+              ticket_id: state.ticket.ticket_id,
+              token: authRes.token,
+              auth_method: method,
+              action: state.action,
+              note: document.getElementById('chkNote').value.trim(),
+            }),
+          });
+
+          const c = res.checkin;
+          document.getElementById('checkinCard').classList.add('hidden');
+          document.getElementById('receiptCard').classList.remove('hidden');
+          document.getElementById('rcptDetails').innerHTML = `
+            <div><strong>${state.lang === 'en' ? 'Name' : 'ชื่อ'}:</strong> ${SC.escapeHtml(c.display_name)}</div>
+            <div><strong>${state.lang === 'en' ? 'Station' : 'จุดเช็กอิน'}:</strong> ${SC.escapeHtml(c.site_name)}</div>
+            <div><strong>${state.lang === 'en' ? 'Time' : 'เวลา'}:</strong> <span class="mono">${SC.escapeHtml(SC.formatDateTime(c.created_at, state.lang))}</span></div>
+            <div><strong>${state.lang === 'en' ? 'Method' : 'วิธี'}:</strong> ${SC.escapeHtml(c.auth_method)} (Nonce: ${c.nonce_checked ? 'YES' : 'PASSKEY-JTI'})</div>
+            <div><strong>Wi-Fi IP Guard:</strong> ${SC.escapeHtml(c.ip_check_status)}</div>
+            <div><strong>ML-DSA-65 JTI:</strong> <span class="mono" style="word-break:break-all;">${SC.escapeHtml(c.token_jti)}</span></div>
+          `;
+        } catch (err) {
+          setBanner('chkFeedback', 'err', `❌ ${SC.localizeError(err, state.lang)}`);
+        }
+      }
+
+      async function completeInvite(method) {
+        if (!state.invite) return;
+        const displayName = document.getElementById('invName').value.trim();
+        if (!displayName) {
+          setBanner('invFeedback', 'err', state.lang === 'en' ? 'Please enter your name.' : 'กรุณากรอกชื่อ-นามสกุล');
+          return;
+        }
+        try {
+          setBanner('invFeedback', 'info', state.lang === 'en' ? 'Minting Login512 enrollment token...' : 'กำลังขอโทเคนลงทะเบียนจาก Login512...');
+          const enr = await SC.apiJson(`/api/invites/${encodeURIComponent(state.invite.code)}/enroll-token`, {
+            method: 'POST',
+            body: JSON.stringify({ display_name: displayName }),
+          });
+          const authRes = await SC.runBiometricAuth({
+            login512Cfg: state.config.login512,
+            action: 'enroll',
+            method,
+            enrollmentToken: enr.enrollment_token,
+            externalUserId: enr.external_user_id,
+            mockSubject: enr.external_user_id,
+          });
+          await SC.apiJson(`/api/invites/${encodeURIComponent(state.invite.code)}/complete`, {
+            method: 'POST',
+            body: JSON.stringify({
+              token: authRes.token,
+              auth_method: method,
+              display_name: displayName,
+              member_code: document.getElementById('invCode').value.trim(),
+              group_name: document.getElementById('invGroup').value.trim(),
+            }),
+          });
+          document.getElementById('inviteCard').classList.add('hidden');
+          document.getElementById('receiptCard').classList.remove('hidden');
+          document.getElementById('rcptTitle').textContent = state.lang === 'en' ? 'Enrollment Complete!' : 'ลงทะเบียนสำเร็จแล้ว!';
+          document.getElementById('rcptSub').textContent = state.lang === 'en'
+            ? 'You can now scan the Kiosk Dynamic QR to check in anytime.'
+            : 'ตอนนี้คุณสามารถส่อง Dynamic QR ที่หน้าจอ Kiosk เพื่อเช็กอินได้ทันที';
+          document.getElementById('rcptDetails').innerHTML = `
+            <div><strong>${state.lang === 'en' ? 'Registered Name' : 'ชื่อที่ลงทะเบียน'}:</strong> ${SC.escapeHtml(displayName)}</div>
+            <div><strong>External User ID:</strong> <span class="mono">${SC.escapeHtml(state.invite.external_user_id)}</span></div>
+            <div><strong>${state.lang === 'en' ? 'Method' : 'วิธี'}:</strong> ${method.toUpperCase()}</div>
+          `;
+        } catch (err) {
+          setBanner('invFeedback', 'err', `❌ ${SC.localizeError(err, state.lang)}`);
+        }
+      }
+
+      async function boot() {
+        state.config = await SC.apiJson('/api/config');
+        state.lang = SC.getLang(state.config.default_lang || 'th');
+        SC.renderLangToggle(document.getElementById('langSlot'), state.lang, (next) => {
+          state.lang = next;
+          applyTexts();
+        });
+        applyTexts();
+
+        if (state.config.login512?.demoMockAuth) {
+          const b = document.getElementById('demoBanner');
+          b.textContent = `⚠️ ${SC.t('mock_mode_warn', state.lang)}`;
+          b.classList.remove('hidden');
+          document.getElementById('mockUserRow').classList.remove('hidden');
+        }
+
+        const inviteCode = params.get('invite');
+        const qrToken = params.get('qr');
+        const siteId = params.get('site');
+
+        if (inviteCode) {
+          try {
+            state.invite = await SC.apiJson(`/api/invites/${encodeURIComponent(inviteCode)}`);
+            document.getElementById('invName').value = state.invite.display_name || '';
+            document.getElementById('invCode').value = state.invite.member_code || '';
+            document.getElementById('invGroup').value = state.invite.group_name || '';
+            document.getElementById('inviteCard').classList.remove('hidden');
+          } catch (err) {
+            document.getElementById('guideCard').classList.remove('hidden');
+            setBanner('guideBanner', 'err', `❌ ${SC.localizeError(err, state.lang)}`);
+          }
+        } else if (qrToken) {
+          try {
+            const ticket = await SC.apiJson('/api/checkin/start', {
+              method: 'POST',
+              body: JSON.stringify({ site_id: siteId, qr_token: qrToken }),
+            });
+            state.ticket = ticket;
+            document.getElementById('chkStationTitle').textContent = ticket.site_name;
+            document.getElementById('qrValidBadge').textContent = `✓ QR ${(ticket.qr_age_ms / 1000).toFixed(1)}s`;
+            document.getElementById('ipStatusBadge').textContent = ticket.ip_check_status === 'PASSED'
+              ? '📶 Wi-Fi IP OK'
+              : '🌐 IP Lock Off';
+            if (ticket.supports_clock_out) {
+              document.getElementById('actionRow').classList.remove('hidden');
+              updateActionButtons();
+            }
+            document.getElementById('checkinCard').classList.remove('hidden');
+          } catch (err) {
+            document.getElementById('guideCard').classList.remove('hidden');
+            setBanner('guideBanner', 'err', `⛔ ${SC.localizeError(err, state.lang)}`);
+          }
+        } else {
+          document.getElementById('guideCard').classList.remove('hidden');
+        }
+
+        document.getElementById('optActionIn').addEventListener('click', () => { state.action = 'check_in'; updateActionButtons(); });
+        document.getElementById('optActionOut').addEventListener('click', () => { state.action = 'check_out'; updateActionButtons(); });
+        document.getElementById('btnScanFace').addEventListener('click', () => completeCheckin('face'));
+        document.getElementById('btnScanPasskey').addEventListener('click', () => completeCheckin('passkey'));
+        document.getElementById('btnInvFace').addEventListener('click', () => completeInvite('face'));
+        document.getElementById('btnInvPasskey').addEventListener('click', () => completeInvite('passkey'));
+        document.getElementById('btnOpenInvite').addEventListener('click', () => {
+          const code = document.getElementById('manualInviteInput').value.trim();
+          if (code) window.location.href = `/scan?invite=${encodeURIComponent(code)}`;
+        });
+      }
+
+      boot();
+    })();
+  </script>
+</body>
+</html>

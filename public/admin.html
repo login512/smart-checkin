@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Console & Dev Inspector — Login512 Smart Check-in</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="cal-strip" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/admin" class="brand">
+        <span class="brand-bars" aria-hidden="true">
+          <span style="background:#ef4444"></span><span style="background:#10b981"></span>
+          <span style="background:#3b82f6"></span><span style="background:#06b6d4"></span>
+          <span style="background:#ec4899"></span><span style="background:#f59e0b"></span>
+        </span>
+        <span id="orgBrand">Login512 Smart Check-in</span>
+      </a>
+      <div class="nav-actions">
+        <a href="/kiosk" class="btn btn-secondary btn-sm" id="navKiosk">📺 จอ Kiosk</a>
+        <button type="button" id="btnLogout" class="btn btn-secondary btn-sm hidden">ออกจากระบบ</button>
+        <div id="langSlot"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="demoBanner" class="banner banner-warn hidden"></div>
+
+    <!-- Admin Login Gate -->
+    <section id="loginGate" class="card hidden" style="max-width:480px; margin:28px auto;">
+      <span class="badge badge-sky" style="margin-bottom:10px;">🛡️ Passwordless Admin Gate</span>
+      <h1 class="card-title" id="gateTitle">เข้าสู่ระบบผู้ดูแล (Admin)</h1>
+      <p class="card-sub" id="gateSub">ยืนยันตัวตนด้วยใบหน้าหรือ Passkey ของผู้ดูแลระบบผ่าน Login512</p>
+      <div id="gateFeedback" class="banner hidden"></div>
+      <div class="stack">
+        <button type="button" id="btnAdminFace" class="btn btn-primary btn-full">📸 เข้าสู่ระบบด้วยใบหน้า</button>
+        <button type="button" id="btnAdminPasskey" class="btn btn-secondary btn-full">👆 เข้าสู่ระบบด้วย Passkey</button>
+      </div>
+    </section>
+
+    <!-- Authenticated Admin Dashboard -->
+    <div id="adminApp" class="hidden">
+      <div class="row-between" style="margin-bottom:16px;">
+        <div>
+          <span id="presetPill" class="badge badge-sky">...</span>
+          <h1 class="card-title" id="dashTitle" style="font-size:22px; margin-top:6px;">แดชบอร์ดจัดการระบบเช็กอิน</h1>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a id="btnExportCsv" href="/api/admin/export.csv" class="btn btn-emerald btn-sm">📥 Export CSV (Excel)</a>
+          <button type="button" id="btnRefresh" class="btn btn-secondary btn-sm">🔄 รีเฟรช</button>
+        </div>
+      </div>
+
+      <div id="adminToast" class="banner hidden"></div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label" id="kpiTodayLbl">เช็กอินวันนี้</div><div class="kpi-val" id="kpiToday">0</div></div>
+        <div class="kpi-card"><div class="kpi-label" id="kpiMembersLbl">สมาชิกที่ลงทะเบียน</div><div class="kpi-val" id="kpiMembers">0</div></div>
+        <div class="kpi-card"><div class="kpi-label" id="kpiSitesLbl">จุดเช็กอิน (Kiosk)</div><div class="kpi-val" id="kpiSites">0</div></div>
+        <div class="kpi-card"><div class="kpi-label" id="kpiWifiLbl">จุดที่ล็อก Wi-Fi IP</div><div class="kpi-val" id="kpiWifi">0</div></div>
+      </div>
+
+      <nav class="tabs" role="tablist">
+        <button type="button" class="tab-btn active" data-tab="checkins" id="tabBtnCheckins">📋 ประวัติเช็กอิน</button>
+        <button type="button" class="tab-btn" data-tab="sites" id="tabBtnSites">📶 จุดเช็กอิน &amp; Wi-Fi IP Lock</button>
+        <button type="button" class="tab-btn" data-tab="members" id="tabBtnMembers">👥 สมาชิก &amp; ลิงก์เชิญ</button>
+        <button type="button" class="tab-btn" data-tab="inspector" id="tabBtnInspector">💻 Token Verify Inspector</button>
+      </nav>
+
+      <!-- Tab 1: Check-ins -->
+      <section id="tab-checkins" class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr id="checkinsHead">
+                <th>เวลา</th><th>จุดเช็กอิน</th><th>สมาชิก</th><th>สถานะ</th><th>วิธี</th><th>Wi-Fi IP</th><th>หมายเหตุ</th><th>ML-DSA-65 JTI</th>
+              </tr>
+            </thead>
+            <tbody id="checkinsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Tab 2: Sites, Preset & Wi-Fi IP Lock -->
+      <section id="tab-sites" class="stack hidden">
+        <div class="card">
+          <h2 class="card-title" id="settingsCardTitle">ตั้งค่าองค์กร &amp; สลับโหมด 5 วงการ</h2>
+          <div class="two-col">
+            <div class="field">
+              <label for="setOrgName">ชื่อองค์กร</label>
+              <input id="setOrgName" class="input" type="text">
+            </div>
+            <div class="field">
+              <label for="setPreset">โหมดวงการ (Industry Preset)</label>
+              <select id="setPreset" class="select"></select>
+            </div>
+          </div>
+          <button type="button" id="btnSaveSettings" class="btn btn-primary btn-sm">บันทึกการตั้งค่าองค์กร</button>
+        </div>
+
+        <div id="sitesList" class="stack"></div>
+
+        <div class="card">
+          <h2 class="card-title" id="newSiteTitle">➕ เพิ่มจุดเช็กอินใหม่ (Kiosk Station)</h2>
+          <div class="two-col">
+            <div class="field">
+              <label for="newSiteName">ชื่อจุดเช็กอิน / ห้องเรียน / สาขา</label>
+              <input id="newSiteName" class="input" type="text" placeholder="เช่น ห้อง 402 หรือ สาขา 2">
+            </div>
+            <div class="field">
+              <label for="newSiteRotate">รอบหมุน Dynamic QR (5–15 วินาที, แนะนำ 5–8 วิ)</label>
+              <input id="newSiteRotate" class="input mono" type="number" min="5" max="15" value="7">
+            </div>
+          </div>
+          <button type="button" id="btnAddSite" class="btn btn-primary btn-sm">สร้างจุดเช็กอิน</button>
+        </div>
+      </section>
+
+      <!-- Tab 3: Members & Invites -->
+      <section id="tab-members" class="stack hidden">
+        <div class="card">
+          <h2 class="card-title" id="invFormTitle">➕ สร้างลิงก์เชิญลงทะเบียนสมาชิกใหม่ (One-Time Invite)</h2>
+          <p class="card-sub">ระบบสร้าง Enrollment Token ฝั่ง Backend ด้วย Secret Key เพื่อไม่ให้คนนอกแอบสวมสิทธิ์ลงทะเบียนแทนผู้อื่นได้</p>
+          <div class="two-col">
+            <div class="field"><label for="invDisplayName">ชื่อ-นามสกุล</label><input id="invDisplayName" class="input" type="text" placeholder="สมชาย ใจดี"></div>
+            <div class="field"><label for="invMemberCode">รหัสประจำตัว</label><input id="invMemberCode" class="input mono" type="text" placeholder="ID-001"></div>
+          </div>
+          <div class="two-col">
+            <div class="field"><label for="invGroupName">แผนก / ชั้นเรียน</label><input id="invGroupName" class="input" type="text"></div>
+            <div class="field"><label for="invExtId">External User ID (เว้นว่างให้สุ่มอัตโนมัติ)</label><input id="invExtId" class="input mono" type="text" placeholder="usr_..."></div>
+          </div>
+          <button type="button" id="btnCreateInvite" class="btn btn-primary btn-sm">สร้างลิงก์เชิญลงทะเบียน</button>
+          <div id="createdInviteBox" class="banner banner-ok hidden" style="margin-top:14px; word-break:break-all;"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">รายชื่อสมาชิกในระบบ</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ชื่อ</th><th>รหัส</th><th>กลุ่ม/แผนก</th><th>External User ID</th><th>สิทธิ์</th><th>วิธีที่ผูก</th></tr></thead>
+              <tbody id="membersBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 4: Dev Token Verify Inspector -->
+      <section id="tab-inspector" class="card hidden">
+        <div class="row-between" style="margin-bottom:10px;">
+          <div>
+            <h2 class="card-title">💻 Login512 Token Verify Inspector (Reference Log)</h2>
+            <p class="card-sub" style="margin-bottom:0;">
+              ดูตัวอย่างโค้ดเชื่อม Login512 แค่ 3 ไฟล์ใน <span class="mono">src/login512/</span> (<span class="mono">client.js</span>, <span class="mono">qr-guard.js</span>, <span class="mono">genesis.js</span>) — ทุกคำขอตรวจลายเซ็น ML-DSA-65 ฝั่งเซิร์ฟเวอร์และไม่เก็บรูปใบหน้า
+            </p>
+          </div>
+          <span class="badge badge-green">0 Bytes Face Images Stored</span>
+        </div>
+        <div class="table-wrap" style="margin-top:14px;">
+          <table>
+            <thead>
+              <tr><th>เวลา</th><th>บริบท</th><th>ผล</th><th>วิธี</th><th>Nonce</th><th>Wi-Fi IP</th><th>QR Age</th><th>Subject</th><th>ML-DSA-65 JTI / Error</th></tr>
+            </thead>
+            <tbody id="auditBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/assets/i18n.js"></script>
+  <script>
+    (function () {
+      let state = {
+        lang: SC.getLang('th'),
+        config: null,
+        csrf: '',
+        overview: null,
+        activeTab: 'checkins',
+      };
+
+      function toast(type, msg) {
+        const el = document.getElementById('adminToast');
+        el.className = `banner banner-${type}`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+      }
+
+      function switchTab(tab) {
+        state.activeTab = tab;
+        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === tab));
+        ['checkins', 'sites', 'members', 'inspector'].forEach((t) => {
+          document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+        });
+      }
+
+      function renderOverview() {
+        const ov = state.overview;
+        if (!ov) return;
+        const l = state.lang;
+        const preset = ov.preset;
+        document.getElementById('orgBrand').textContent = ov.config.org_name;
+        document.getElementById('presetPill').textContent = `${preset.icon} ${preset[l].name}`;
+        document.getElementById('btnExportCsv').href = `/api/admin/export.csv?lang=${l}`;
+        document.getElementById('kpiToday').textContent = String(ov.stats.today_checkins);
+        document.getElementById('kpiMembers').textContent = String(ov.stats.total_members);
+        document.getElementById('kpiSites').textContent = String(ov.stats.total_sites);
+        document.getElementById('kpiWifi').textContent = String(ov.stats.wifi_locked_sites);
+
+        document.getElementById('setOrgName').value = ov.config.org_name;
+        const selPreset = document.getElementById('setPreset');
+        selPreset.innerHTML = ov.presets.map((p) => `<option value="${SC.escapeHtml(p.id)}" ${p.id === ov.config.preset_id ? 'selected' : ''}>${p.icon} ${SC.escapeHtml(p[l].name)}</option>`).join('');
+
+        // Checkins table
+        const cBody = document.getElementById('checkinsBody');
+        cBody.innerHTML = ov.checkins.length
+          ? ov.checkins.map((c) => `
+            <tr>
+              <td class="mono" style="white-space:nowrap;">${SC.escapeHtml(SC.formatDateTime(c.created_at, l))}</td>
+              <td>${SC.escapeHtml(c.site_name)}</td>
+              <td><strong>${SC.escapeHtml(c.display_name)}</strong><div class="mono" style="font-size:11.5px; color:var(--muted);">${SC.escapeHtml(c.member_code || c.external_user_id)}</div></td>
+              <td><span class="badge ${c.action === 'check_out' ? 'badge-amber' : 'badge-green'}">${SC.escapeHtml(c.action)}</span></td>
+              <td>${SC.escapeHtml(c.auth_method)}</td>
+              <td><span class="badge ${c.ip_check_status === 'PASSED' ? 'badge-sky' : ''}">${SC.escapeHtml(c.ip_check_status)}</span></td>
+              <td>${SC.escapeHtml(c.note || '-')}</td>
+              <td class="mono" style="font-size:11.5px;">${SC.escapeHtml((c.token_jti || '').slice(0, 14))}…</td>
+            </tr>
+          `).join('')
+          : `<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:24px;">${l === 'en' ? 'No check-ins recorded yet' : 'ยังไม่มีข้อมูลเช็กอิน'}</td></tr>`;
+
+        // Sites + Wi-Fi IP Allowlist cards
+        const detectedIp = ov.detected_ip || '127.0.0.1';
+        const sitesWrap = document.getElementById('sitesList');
+        sitesWrap.innerHTML = ov.sites.map((s) => `
+          <div class="card" data-site-card="${SC.escapeHtml(s.id)}">
+            <div class="row-between" style="margin-bottom:12px;">
+              <div>
+                <h3 class="card-title" style="margin:0;">${SC.escapeHtml(s.name)}</h3>
+                <div class="mono" style="font-size:12px; color:var(--muted);">ID: ${SC.escapeHtml(s.id)}</div>
+              </div>
+              <a href="/kiosk?site=${encodeURIComponent(s.id)}" target="_blank" class="btn btn-secondary btn-sm">📺 เปิด Kiosk จุดนี้</a>
+            </div>
+            <div class="two-col">
+              <div class="field">
+                <label>ชื่อจุดเช็กอิน</label>
+                <input class="input site-name" value="${SC.escapeHtml(s.name)}">
+              </div>
+              <div class="field">
+                <label>รอบหมุน Dynamic QR (5–15 วินาที, แนะนำ 5–8 วิ)</label>
+                <input class="input mono site-rotate" type="number" min="5" max="15" value="${s.qr_rotate_sec}">
+              </div>
+            </div>
+            <div class="field">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" class="site-req-wifi" ${s.require_wifi_ip ? 'checked' : ''} style="width:16px; height:16px;">
+                <span>📶 บังคับใช้ Wi-Fi สำนักงาน/โรงเรียน (IP Allowlist — ป้องกันวิดีโอคอลส่อง QR จากระยะไกล)</span>
+              </label>
+            </div>
+            <div class="field">
+              <div class="row-between" style="margin-bottom:6px;">
+                <label style="margin:0;">รายการ IP / CIDR ที่อนุญาต (คั่นด้วยลูกน้ำหรือขึ้นบรรทัดใหม่)</label>
+                <button type="button" class="btn btn-secondary btn-sm btn-use-my-ip" data-ip="${SC.escapeHtml(detectedIp)}">📍 ใช้ IP ปัจจุบันของฉัน (${SC.escapeHtml(detectedIp)})</button>
+              </div>
+              <textarea class="textarea site-ips" placeholder="เช่น 203.0.113.10, 192.168.1.0/24">${SC.escapeHtml(s.allowed_ips || '')}</textarea>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm btn-save-site">บันทึกการตั้งค่าจุดนี้</button>
+          </div>
+        `).join('');
+
+        sitesWrap.querySelectorAll('[data-site-card]').forEach((card) => {
+          const siteId = card.getAttribute('data-site-card');
+          card.querySelector('.btn-use-my-ip').addEventListener('click', (e) => {
+            const ip = e.currentTarget.getAttribute('data-ip');
+            const ta = card.querySelector('.site-ips');
+            const cur = ta.value.trim();
+            if (!cur.split(/[\n,;]+/).map((x) => x.trim()).includes(ip)) {
+              ta.value = cur ? `${cur}\n${ip}` : ip;
+            }
+            card.querySelector('.site-req-wifi').checked = true;
+          });
+          card.querySelector('.btn-save-site').addEventListener('click', async () => {
+            try {
+              await SC.apiJson(`/api/admin/sites/${encodeURIComponent(siteId)}`, {
+                method: 'PATCH',
+                headers: { 'x-csrf-token': state.csrf },
+                body: JSON.stringify({
+                  name: card.querySelector('.site-name').value.trim(),
+                  qr_rotate_sec: Number(card.querySelector('.site-rotate').value),
+                  require_wifi_ip: card.querySelector('.site-req-wifi').checked,
+                  allowed_ips: card.querySelector('.site-ips').value.trim(),
+                }),
+              });
+              toast('ok', '✅ บันทึกการตั้งค่าจุดเช็กอินและ Wi-Fi IP Lock เรียบร้อย');
+              await loadOverview();
+            } catch (err) {
+              toast('err', `❌ ${SC.localizeError(err, state.lang)}`);
+            }
+          });
+        });
+
+        // Members table
+        document.getElementById('membersBody').innerHTML = ov.members.map((m) => `
+          <tr>
+            <td><strong>${SC.escapeHtml(m.display_name)}</strong></td>
+            <td class="mono">${SC.escapeHtml(m.member_code || '-')}</td>
+            <td>${SC.escapeHtml(m.group_name || '-')}</td>
+            <td class="mono" style="font-size:12px;">${SC.escapeHtml(m.external_user_id)}</td>
+            <td><span class="badge ${m.role === 'ADMIN' ? 'badge-purple' : ''}">${SC.escapeHtml(m.role)}</span></td>
+            <td class="mono">${SC.escapeHtml(m.enrolled_methods || '-')}</td>
+          </tr>
+        `).join('');
+
+        // Audit inspector table
+        document.getElementById('auditBody').innerHTML = ov.audits.map((a) => `
+          <tr>
+            <td class="mono" style="white-space:nowrap;">${SC.escapeHtml(SC.formatTime(a.created_at, l))}</td>
+            <td class="mono">${SC.escapeHtml(a.context)}</td>
+            <td><span class="badge ${a.valid ? 'badge-green' : 'badge-red'}">${a.valid ? 'VALID' : 'REJECTED'}</span></td>
+            <td>${SC.escapeHtml(a.auth_method)}</td>
+            <td>${a.nonce_checked ? '✓ YES' : '-'}</td>
+            <td>${SC.escapeHtml(a.ip_check_status || '-')}</td>
+            <td class="mono">${a.qr_age_ms != null ? `${a.qr_age_ms}ms` : '-'}</td>
+            <td class="mono">${SC.escapeHtml(a.external_user_id || '-')}</td>
+            <td class="mono" style="font-size:11.5px;">${SC.escapeHtml(a.valid ? `${a.token_alg} · ${(a.token_jti || '').slice(0, 12)}…` : (a.error_code || 'FAILED'))}</td>
+          </tr>
+        `).join('');
+      }
+
+      async function loadOverview() {
+        state.overview = await SC.apiJson('/api/admin/overview');
+        renderOverview();
+        if (state.overview.preset?.showDevInspectorDefault && state.activeTab === 'checkins') {
+          switchTab('inspector');
+        }
+      }
+
+      async function adminLogin(method) {
+        const fb = document.getElementById('gateFeedback');
+        const show = (type, msg) => { fb.className = `banner banner-${type}`; fb.textContent = msg; fb.classList.remove('hidden'); };
+        try {
+          let nonce = null;
+          if (method === 'face') {
+            const n = await SC.apiJson('/api/auth/nonce', { method: 'POST' });
+            nonce = n.nonce;
+          }
+          show('info', state.lang === 'en' ? 'Completing Login512 biometric verification...' : 'กำลังยืนยันตัวตนผู้ดูแลผ่าน Login512...');
+          const authRes = await SC.runBiometricAuth({
+            login512Cfg: state.config.login512,
+            action: 'login',
+            method,
+            nonce,
+            mockSubject: 'superadmin',
+          });
+          const res = await SC.apiJson('/api/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ token: authRes.token, auth_method: method, nonce }),
+          });
+          state.csrf = res.csrf_token;
+          document.getElementById('loginGate').classList.add('hidden');
+          document.getElementById('adminApp').classList.remove('hidden');
+          document.getElementById('btnLogout').classList.remove('hidden');
+          await loadOverview();
+        } catch (err) {
+          show('err', `❌ ${SC.localizeError(err, state.lang)}`);
+        }
+      }
+
+      async function boot() {
+        state.config = await SC.apiJson('/api/config');
+        if (!state.config.genesis_locked) {
+          window.location.href = '/setup';
+          return;
+        }
+        state.lang = SC.getLang(state.config.default_lang || 'th');
+        SC.renderLangToggle(document.getElementById('langSlot'), state.lang, (next) => {
+          state.lang = next;
+          if (state.overview) renderOverview();
+        });
+
+        if (state.config.login512?.demoMockAuth) {
+          const b = document.getElementById('demoBanner');
+          b.textContent = `⚠️ ${SC.t('mock_mode_warn', state.lang)}`;
+          b.classList.remove('hidden');
+        }
+
+        try {
+          const me = await SC.apiJson('/api/auth/me');
+          state.csrf = me.csrf_token;
+          document.getElementById('adminApp').classList.remove('hidden');
+          document.getElementById('btnLogout').classList.remove('hidden');
+          await loadOverview();
+        } catch {
+          document.getElementById('loginGate').classList.remove('hidden');
+        }
+
+        document.querySelectorAll('.tab-btn').forEach((btn) => {
+          btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+        });
+        document.getElementById('btnAdminFace').addEventListener('click', () => adminLogin('face'));
+        document.getElementById('btnAdminPasskey').addEventListener('click', () => adminLogin('passkey'));
+        document.getElementById('btnRefresh').addEventListener('click', loadOverview);
+        document.getElementById('btnLogout').addEventListener('click', async () => {
+          await SC.apiJson('/api/auth/logout', { method: 'POST' });
+          window.location.reload();
+        });
+
+        document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+          try {
+            await SC.apiJson('/api/admin/settings', {
+              method: 'PATCH',
+              headers: { 'x-csrf-token': state.csrf },
+              body: JSON.stringify({
+                org_name: document.getElementById('setOrgName').value.trim(),
+                preset_id: document.getElementById('setPreset').value,
+              }),
+            });
+            toast('ok', '✅ บันทึกโหมดวงการและชื่อองค์กรเรียบร้อย');
+            await loadOverview();
+          } catch (err) {
+            toast('err', `❌ ${SC.localizeError(err, state.lang)}`);
+          }
+        });
+
+        document.getElementById('btnAddSite').addEventListener('click', async () => {
+          try {
+            await SC.apiJson('/api/admin/sites', {
+              method: 'POST',
+              headers: { 'x-csrf-token': state.csrf },
+              body: JSON.stringify({
+                name: document.getElementById('newSiteName').value.trim(),
+                qr_rotate_sec: Number(document.getElementById('newSiteRotate').value),
+              }),
+            });
+            document.getElementById('newSiteName').value = '';
+            toast('ok', '✅ เพิ่มจุดเช็กอินใหม่เรียบร้อย');
+            await loadOverview();
+          } catch (err) {
+            toast('err', `❌ ${SC.localizeError(err, state.lang)}`);
+          }
+        });
+
+        document.getElementById('btnCreateInvite').addEventListener('click', async () => {
+          try {
+            const res = await SC.apiJson('/api/admin/invites', {
+              method: 'POST',
+              headers: { 'x-csrf-token': state.csrf },
+              body: JSON.stringify({
+                display_name: document.getElementById('invDisplayName').value.trim(),
+                member_code: document.getElementById('invMemberCode').value.trim(),
+                group_name: document.getElementById('invGroupName').value.trim(),
+                external_user_id: document.getElementById('invExtId').value.trim(),
+              }),
+            });
+            const box = document.getElementById('createdInviteBox');
+            box.innerHTML = `✅ Invite Link (One-Time): <a href="${SC.escapeHtml(res.invite_url)}" target="_blank">${SC.escapeHtml(res.invite_url)}</a>`;
+            box.classList.remove('hidden');
+            await loadOverview();
+          } catch (err) {
+            toast('err', `❌ ${SC.localizeError(err, state.lang)}`);
+          }
+        });
+      }
+
+      boot();
+    })();
+  </script>
+</body>
+</html>

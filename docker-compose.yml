@@ -1,0 +1,13 @@
+services:
+  smart-checkin:
+    build: .
+    container_name: login512-smart-checkin
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3512}:3512"
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data

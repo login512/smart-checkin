@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiosk Dynamic QR — Login512 Smart Check-in</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="cal-strip" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/kiosk" class="brand">
+        <span class="brand-bars" aria-hidden="true">
+          <span style="background:#ef4444"></span><span style="background:#10b981"></span>
+          <span style="background:#3b82f6"></span><span style="background:#06b6d4"></span>
+          <span style="background:#ec4899"></span><span style="background:#f59e0b"></span>
+        </span>
+        <span id="orgBrand">Login512 Smart Check-in</span>
+      </a>
+      <div class="nav-actions">
+        <span id="presetBadge" class="badge badge-sky">🎓 ...</span>
+        <select id="siteSelect" class="select" style="width:auto; min-width:170px; padding:6px 10px; font-size:13px;" aria-label="Select Station"></select>
+        <button type="button" id="btnFullscreen" class="btn btn-secondary btn-sm">⛶</button>
+        <a href="/admin" class="btn btn-secondary btn-sm" id="navAdmin">⚙️ หลังบ้าน</a>
+        <div id="langSlot"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="demoBanner" class="banner banner-warn hidden"></div>
+
+    <div class="kiosk-grid">
+      <!-- Left: Dynamic QR Stage -->
+      <section class="card qr-stage">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:10px;">
+          <span class="badge badge-sky" id="rotateBadge">⏱️ Dynamic QR 7s</span>
+          <span class="badge" id="wifiBadge">🌐 Wi-Fi Lock</span>
+          <span class="badge badge-green">⚛️ ML-DSA-65 • Zero-Image</span>
+        </div>
+
+        <h1 class="card-title" id="kioskHeadline" style="font-size:22px;">สแกน QR เพื่อเช็กอิน</h1>
+        <p class="card-sub" id="kioskSub" style="max-width:440px; margin-bottom:10px;"></p>
+
+        <div class="qr-box" id="qrBox" aria-label="Dynamic Check-In QR Code">
+          <span style="color:#64748b; font-size:14px;">Loading QR...</span>
+        </div>
+
+        <div class="qr-progress-wrap" aria-hidden="true">
+          <div id="qrProgressBar" class="qr-progress-bar"></div>
+        </div>
+        <div id="qrCountdownText" class="mono" style="font-size:13px; color:var(--primary); font-weight:700; margin-bottom:14px;">...</div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+          <a id="btnOpenDirectScan" href="/scan" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">📱 ทดสอบสแกนจากเครื่องนี้</a>
+        </div>
+      </section>
+
+      <!-- Right: Live SSE Feed -->
+      <section class="card">
+        <div class="row-between" style="margin-bottom:14px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="pulse-dot" id="sseDot"></span>
+              <span id="sseStatus" style="font-size:13px; font-weight:600; color:#6ee7b7;">อัปเดตสดแบบ Real-time</span>
+            </div>
+            <h2 class="card-title" id="siteTitle" style="margin-top:4px;">...</h2>
+          </div>
+          <div style="text-align:right;">
+            <div id="todayLabel" style="font-size:12px; color:var(--muted);">เช็กอินวันนี้</div>
+            <div id="todayCount" class="mono" style="font-size:32px; font-weight:800; color:var(--primary); line-height:1.1;">0</div>
+          </div>
+        </div>
+
+        <div id="feedList" class="feed-list"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/assets/i18n.js"></script>
+  <script>
+    (function () {
+      let state = {
+        lang: SC.getLang('th'),
+        config: null,
+        siteId: 'default',
+        rotateSec: 7,
+        nextRotateAt: 0,
+        recent: [],
+        sse: null,
+        refreshTimer: null,
+        tickTimer: null,
+      };
+
+      function applyTexts() {
+        const l = state.lang;
+        document.documentElement.lang = l;
+        const preset = state.config.preset;
+        document.getElementById('orgBrand').textContent = state.config.org_name;
+        document.getElementById('presetBadge').textContent = `${preset.icon} ${preset[l].shortName}`;
+        document.getElementById('navAdmin').textContent = `⚙️ ${SC.t('nav_admin', l)}`;
+        document.getElementById('kioskHeadline').textContent = preset[l].kioskHeadline;
+        document.getElementById('kioskSub').textContent = preset[l].kioskSub.replace('{sec}', String(state.rotateSec));
+        document.getElementById('todayLabel').textContent = SC.t('today_count_label', l);
+        document.getElementById('btnOpenDirectScan').textContent = l === 'en' ? '📱 Test Scan on This Device' : '📱 ทดสอบสแกนจากเครื่องนี้';
+        renderFeed();
+      }
+
+      function renderFeed() {
+        const l = state.lang;
+        const wrap = document.getElementById('feedList');
+        if (!state.recent.length) {
+          wrap.innerHTML = `<div style="text-align:center; padding:36px 14px; color:var(--muted); border:1px dashed var(--border); border-radius:12px;">${SC.escapeHtml(SC.t('no_checkins_yet', l))}</div>`;
+          return;
+        }
+        const preset = state.config.preset[l];
+        wrap.innerHTML = state.recent.map((c) => {
+          const actionText = c.action === 'check_out' ? preset.actionOutLabel : preset.actionInLabel;
+          const actionCls = c.action === 'check_out' ? 'badge-amber' : 'badge-green';
+          const methodBadge = c.auth_method === 'PASSKEY' ? '👆 Passkey' : '👤 Face';
+          const ipBadge = c.ip_check_status === 'PASSED'
+            ? `<span class="badge badge-sky">📶 Wi-Fi OK</span>`
+            : '';
+          return `
+            <div class="feed-item">
+              <div style="min-width:0;">
+                <div class="feed-name">${SC.escapeHtml(c.display_name)}</div>
+                <div class="feed-meta">
+                  ${c.member_code ? `<span class="mono">${SC.escapeHtml(c.member_code)}</span>` : ''}
+                  ${c.group_name ? `<span>${SC.escapeHtml(c.group_name)}</span>` : ''}
+                  <span>${methodBadge}</span>
+                  <span>✓ ${SC.escapeHtml(c.token_alg || 'ML-DSA-65')}</span>
+                  ${c.note ? `<span>📝 ${SC.escapeHtml(c.note)}</span>` : ''}
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex-shrink:0;">
+                <span class="badge ${actionCls}">${SC.escapeHtml(actionText)}</span>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  ${ipBadge}
+                  <span class="mono" style="font-size:12px; color:var(--muted);">${SC.escapeHtml(SC.formatTime(c.created_at, l))}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      async function fetchQr() {
+        try {
+          const data = await SC.apiJson(`/api/kiosk/${encodeURIComponent(state.siteId)}/qr`);
+          state.siteId = data.site.id;
+          state.rotateSec = data.rotate_sec;
+          state.nextRotateAt = Date.now() + data.next_rotate_in_ms;
+
+          document.getElementById('qrBox').innerHTML = data.qr_svg;
+          document.getElementById('btnOpenDirectScan').href = data.scan_url;
+          document.getElementById('siteTitle').textContent = data.site.name;
+          document.getElementById('todayCount').textContent = String(data.today_count || 0);
+          document.getElementById('rotateBadge').textContent = `⏱️ Dynamic QR ${data.rotate_sec}s`;
+
+          const wifiEl = document.getElementById('wifiBadge');
+          wifiEl.className = data.site.require_wifi_ip ? 'badge badge-green' : 'badge';
+          wifiEl.textContent = data.site.require_wifi_ip ? SC.t('wifi_lock_on', state.lang) : SC.t('wifi_lock_off', state.lang);
+
+          document.getElementById('kioskSub').textContent = state.config.preset[state.lang].kioskSub.replace('{sec}', String(state.rotateSec));
+
+          if (!state.recent.length && Array.isArray(data.recent_checkins)) {
+            state.recent = data.recent_checkins;
+            renderFeed();
+          }
+
+          clearTimeout(state.refreshTimer);
+          state.refreshTimer = setTimeout(fetchQr, Math.max(800, data.next_rotate_in_ms + 120));
+        } catch (err) {
+          clearTimeout(state.refreshTimer);
+          state.refreshTimer = setTimeout(fetchQr, 2500);
+        }
+      }
+
+      function startTick() {
+        clearInterval(state.tickTimer);
+        state.tickTimer = setInterval(() => {
+          const leftMs = Math.max(0, state.nextRotateAt - Date.now());
+          const pct = Math.min(100, (leftMs / (state.rotateSec * 1000)) * 100);
+          document.getElementById('qrProgressBar').style.width = `${pct}%`;
+          document.getElementById('qrCountdownText').textContent = SC.t('qr_rotating_in', state.lang, {
+            sec: Math.max(1, Math.ceil(leftMs / 1000)),
+          });
+        }, 180);
+      }
+
+      function connectSse() {
+        if (state.sse) state.sse.close();
+        const sse = new EventSource(`/api/kiosk/${encodeURIComponent(state.siteId)}/stream`);
+        state.sse = sse;
+        sse.addEventListener('ready', (ev) => {
+          document.getElementById('sseStatus').textContent = SC.t('sse_connected', state.lang);
+          try {
+            const d = JSON.parse(ev.data);
+            if (d.today_count != null) document.getElementById('todayCount').textContent = String(d.today_count);
+          } catch {}
+        });
+        sse.addEventListener('checkin', (ev) => {
+          try {
+            const item = JSON.parse(ev.data);
+            state.recent = [item, ...state.recent.filter((x) => x.id !== item.id)].slice(0, 20);
+            if (item.today_count != null) document.getElementById('todayCount').textContent = String(item.today_count);
+            renderFeed();
+          } catch {}
+        });
+        sse.onerror = () => {
+          document.getElementById('sseStatus').textContent = SC.t('sse_reconnecting', state.lang);
+        };
+      }
+
+      async function boot() {
+        state.config = await SC.apiJson('/api/config');
+        state.lang = SC.getLang(state.config.default_lang || 'th');
+        const params = new URLSearchParams(window.location.search);
+        const sites = state.config.sites || [];
+        state.siteId = params.get('site') || (sites[0] && sites[0].id) || 'default';
+
+        const sel = document.getElementById('siteSelect');
+        sel.innerHTML = sites.map((s) => `<option value="${SC.escapeHtml(s.id)}" ${s.id === state.siteId ? 'selected' : ''}>${SC.escapeHtml(s.name)}</option>`).join('');
+        sel.addEventListener('change', () => {
+          state.siteId = sel.value;
+          state.recent = [];
+          fetchQr().then(connectSse);
+        });
+
+        if (state.config.login512?.demoMockAuth) {
+          const b = document.getElementById('demoBanner');
+          b.textContent = `⚠️ ${SC.t('mock_mode_warn', state.lang)}`;
+          b.classList.remove('hidden');
+        }
+
+        SC.renderLangToggle(document.getElementById('langSlot'), state.lang, (next) => {
+          state.lang = next;
+          applyTexts();
+          fetchQr();
+        });
+
+        document.getElementById('btnFullscreen').addEventListener('click', () => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen?.();
+          } else {
+            document.exitFullscreen?.();
+          }
+        });
+
+        applyTexts();
+        await fetchQr();
+        startTick();
+        connectSse();
+      }
+
+      boot();
+    })();
+  </script>
+</body>
+</html>
