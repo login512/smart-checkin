@@ -342,3 +342,51 @@ test('6. Mock mode guard: refuses production/non-localhost, and mock tokens do n
   const prod = createApp({ ...base, demoMockAuth: false, nodeEnv: 'production', publicBaseUrl: 'https://checkin.example.com' });
   prod.close();
 });
+
+test('7. Genesis on a second install: an already-enrolled Superadmin proves itself with a login (nonce-bound)', async () => {
+  const KEY = 'L512-SECOND-INSTALL-KEY-0123456789';
+  const srv = await startTestServer({ genesisSetupKey: KEY });
+  try {
+    // The same Login512 account already has this Superadmin (e.g. the first install on another computer).
+    srv.instance.login512._mockEnrolledUsers.add('superadmin');
+
+    const enr = await reqJson(srv.baseUrl, '/api/setup/enroll-token', {
+      method: 'POST',
+      body: { setup_key: KEY, display_name: 'Owner', admin_id: 'superadmin' },
+    });
+    assert.equal(enr.status, 200, JSON.stringify(enr.data));
+    assert.equal(enr.data.mode, 'login');
+    assert.ok(enr.data.nonce);
+    assert.equal(enr.data.enrollment_token, undefined);
+
+    const claimBody = (token, extra = {}) => ({
+      setup_key: KEY, token, auth_method: 'face', mode: 'login', nonce: enr.data.nonce, admin_id: 'superadmin',
+      preset_id: 'classroom', org_name: 'Second Install', display_name: 'Owner', ...extra,
+    });
+
+    // Someone else's login (right nonce) is refused...
+    const other = srv.instance.login512.issueMockToken({ sub: 'someone_else', act: 'login', mod: 'FACE', nonce: enr.data.nonce });
+    const bad = await reqJson(srv.baseUrl, '/api/setup/claim', { method: 'POST', body: claimBody(other) });
+    assert.equal(bad.status, 403);
+    assert.equal(bad.data.error.code, 'NOT_SUPERADMIN');
+
+    // ...and the nonce was single-use, so a fresh one is needed.
+    const enr2 = await reqJson(srv.baseUrl, '/api/setup/enroll-token', {
+      method: 'POST',
+      body: { setup_key: KEY, display_name: 'Owner', admin_id: 'superadmin' },
+    });
+    const reused = srv.instance.login512.issueMockToken({ sub: 'superadmin', act: 'login', mod: 'FACE', nonce: enr.data.nonce });
+    const reuse = await reqJson(srv.baseUrl, '/api/setup/claim', { method: 'POST', body: claimBody(reused) });
+    assert.equal(reuse.status, 400);
+    assert.equal(reuse.data.error.code, 'INVALID_NONCE');
+
+    // The real Superadmin with the fresh nonce sets the install up and locks it.
+    const mine = srv.instance.login512.issueMockToken({ sub: 'superadmin', act: 'login', mod: 'FACE', nonce: enr2.data.nonce });
+    const ok = await reqJson(srv.baseUrl, '/api/setup/claim', { method: 'POST', body: claimBody(mine, { nonce: enr2.data.nonce }) });
+    assert.equal(ok.status, 200, JSON.stringify(ok.data));
+    assert.equal(ok.data.genesis_locked, true);
+    assert.equal(ok.data.admin.external_user_id, 'superadmin');
+  } finally {
+    await srv.close();
+  }
+});

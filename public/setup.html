@@ -157,20 +157,39 @@
             body: JSON.stringify({ setup_key: setupKey, display_name: displayName, admin_id: 'superadmin' }),
           });
           showFeedback('info', state.lang === 'en' ? 'Complete biometric verification in Login512...' : 'กรุณาสแกนยืนยันตัวตนผ่าน Login512...');
-          const authRes = await SC.runBiometricAuth({
-            login512Cfg: state.login512,
-            action: 'enroll',
-            method,
-            enrollmentToken: enr.enrollment_token,
-            externalUserId: enr.external_user_id,
-            mockSubject: enr.external_user_id,
-          });
+          // Already enrolled in this Login512 account (second install / reinstall): prove it with a login instead.
+          const loginMode = enr.mode === 'login';
+          if (loginMode) {
+            showFeedback('info', state.lang === 'en'
+              ? 'This Superadmin is already registered with Login512. Scan to confirm it is you...'
+              : 'Superadmin นี้ลงทะเบียนกับ Login512 ไว้แล้ว สแกนเพื่อยืนยันว่าเป็นคุณ...');
+          }
+          const authRes = await SC.runBiometricAuth(loginMode
+            ? {
+              login512Cfg: state.login512,
+              action: 'login',
+              method,
+              nonce: enr.nonce,
+              externalUserId: enr.external_user_id,
+              mockSubject: enr.external_user_id,
+            }
+            : {
+              login512Cfg: state.login512,
+              action: 'enroll',
+              method,
+              enrollmentToken: enr.enrollment_token,
+              externalUserId: enr.external_user_id,
+              mockSubject: enr.external_user_id,
+            });
           await SC.apiJson('/api/setup/claim', {
             method: 'POST',
             body: JSON.stringify({
               setup_key: setupKey,
               token: authRes.token,
               auth_method: method,
+              mode: loginMode ? 'login' : 'enroll',
+              nonce: loginMode ? enr.nonce : undefined,
+              admin_id: enr.external_user_id,
               preset_id: state.presetId,
               org_name: orgName,
               site_name: siteName,

@@ -35,6 +35,7 @@ class Login512Client {
     // (or a copy of this public source code) can never be used against another deployment.
     this._mockKey = crypto.randomBytes(32);
     this._mockUsedJtis = new Set();
+    this._mockEnrolledUsers = new Set();  // mock: identities that finished enrollment (like Login512 ACTIVE)
     this._mockEnrollTokens = new Map();
   }
 
@@ -71,6 +72,9 @@ class Login512Client {
     }
 
     if (this.demoMockAuth) {
+      if (this._mockEnrolledUsers.has(externalUserId)) {
+        throw codedError('ALREADY_ENROLLED', `Identity '${externalUserId}' is already enrolled`, 409);
+      }
       const token = `l512_enr_mock_${crypto.randomBytes(12).toString('hex')}`;
       this._mockEnrollTokens.set(token, {
         externalUserId,
@@ -84,13 +88,20 @@ class Login512Client {
       };
     }
 
-    return sdk.createEnrollmentToken({
-      secretKey: this.secretKey,
-      externalUserId,
-      displayName,
-      ttlSeconds,
-      endpoint: this.endpoint,
+    // Same request as sdk.createEnrollmentToken, but keeps Login512's error code: the SDK turns it into
+    // "Failed to create enrollment token: [object Object]", and the setup page needs ALREADY_ENROLLED to switch to a
+    // login (a second install, or a reinstall, on the same Login512 account).
+    const resp = await fetch(`${this.endpoint}/v1/enrollment-tokens`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': this.secretKey },
+      body: JSON.stringify({ external_user_id: externalUserId, display_name: displayName, ttl_seconds: ttlSeconds }),
     });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      const err = data && data.error ? data.error : {};
+      throw codedError(err.code || `HTTP_${resp.status}`, err.message || `Login512 returned HTTP ${resp.status}`, resp.status);
+    }
+    return data;
   }
 
   /**
@@ -225,6 +236,7 @@ class Login512Client {
         return { valid: false, error: 'TOKEN_ALREADY_USED', claims, session_allowed: false, step_up_required: false };
       }
       this._mockUsedJtis.add(claims.jti);
+      if (String(claims.act || '').startsWith('enroll') && claims.sub) this._mockEnrolledUsers.add(String(claims.sub));
       const stepUp = Boolean(claims.stp);
       return {
         valid: true,
@@ -247,6 +259,13 @@ function decodeTokenHeaderSafe(token) {
   } catch {
     return null;
   }
+}
+
+function codedError(code, message, status) {
+  const err = new Error(message);
+  err.code = code;
+  err.status = status;
+  return err;
 }
 
 function failResult(errorCode, errorMessage, claims = null) {

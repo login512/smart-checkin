@@ -358,12 +358,20 @@ function createApp(options = {}) {
         ttlSeconds: 300,
       });
       return res.status(201).json({
+        mode: 'enroll',
         enrollment_token: enr.enrollment_token,
         expires_at: enr.expires_at,
         external_user_id: externalUserId,
       });
     } catch (err) {
-      return res.status(502).json({ error: { code: 'ENROLL_TOKEN_FAILED', message: err.message } });
+      if (err && err.code === 'ALREADY_ENROLLED') {
+        // This Superadmin is already enrolled in this Login512 account (a second install, or a reinstall after
+        // clearing data). Enrolling again is refused, so the owner proves it is them with a normal login instead.
+        const nonce = login512.generateNonce();
+        repo.createAuthNonce(nonce, 'genesis_login', 180000);
+        return res.status(200).json({ mode: 'login', external_user_id: externalUserId, nonce, expires_in_sec: 180 });
+      }
+      return res.status(502).json({ error: { code: (err && err.code) || 'ENROLL_TOKEN_FAILED', message: err.message } });
     }
   });
 
@@ -372,16 +380,30 @@ function createApp(options = {}) {
       return res.status(409).json({ error: { code: 'GENESIS_LOCKED', message: 'Genesis mode is already permanently locked.' } });
     }
 
-    const { setup_key, token, auth_method, preset_id, org_name, default_lang, display_name, site_name } = req.body || {};
+    const { setup_key, token, auth_method, preset_id, org_name, default_lang, display_name, site_name, nonce, admin_id } = req.body || {};
     if (!verifySetupKey(repo, setup_key)) {
       return res.status(403).json({ error: { code: 'INVALID_SETUP_KEY', message: 'Invalid One-Time Genesis Setup Key.' } });
     }
 
+    const claimMethod = auth_method === 'passkey' ? 'passkey' : 'face';
+    const loginMode = req.body && req.body.mode === 'login';
+    if (loginMode && claimMethod === 'face') {
+      if (!nonce || !repo.consumeAuthNonce(String(nonce), 'genesis_login')) {
+        return res.status(400).json({ error: { code: 'INVALID_NONCE', message: 'Setup login nonce is missing, expired, or already used.' } });
+      }
+    }
     const verified = await login512.verifyAuthToken({
       token,
-      authMethod: auth_method === 'passkey' ? 'passkey' : 'face',
-      expectedActs: ['enroll', 'enroll_passkey'],
+      authMethod: claimMethod,
+      expectedNonce: loginMode && claimMethod === 'face' ? String(nonce) : null,
+      expectedActs: loginMode ? ['login'] : ['enroll', 'enroll_passkey'],
     });
+    if (verified.valid && loginMode) {
+      const wantedId = String(admin_id || 'superadmin').trim().toLowerCase().replace(/[^a-z0-9._:@-]/g, '').slice(0, 64) || 'superadmin';
+      if (verified.subject !== wantedId) {
+        return res.status(403).json({ error: { code: 'NOT_SUPERADMIN', message: 'The verified identity is not the Superadmin of this Login512 account.' } });
+      }
+    }
 
     repo.recordVerifyAudit({
       context: 'genesis_claim',
@@ -1046,10 +1068,13 @@ function createApp(options = {}) {
 
 if (require.main === module) {
   const port = Number.parseInt(process.env.PORT || '3512', 10);
+  // Behind a reverse proxy on a server, set HOST=127.0.0.1 so the app is reachable only through the proxy
+  // (otherwise it listens on every interface, and without a firewall the port is open to the internet).
+  const host = (process.env.HOST || '').trim() || undefined;
   const instance = createApp();
   const cfg = instance.repo.getAppConfig();
 
-  const server = instance.app.listen(port, () => {
+  const server = instance.app.listen(port, host, () => {
     console.log('');
     console.log('==================================================================');
     console.log('  Login512 Smart Check-in (Open-Source Reference App)');
