@@ -11,7 +11,8 @@
     "start": "node --no-warnings src/server.js",
     "dev": "node --no-warnings --watch src/server.js",
     "test": "node --no-warnings --test tests/*.test.js",
-    "build:zips": "node --no-warnings scripts/build-preset-zips.js"
+    "build:zips": "node --no-warnings scripts/build-preset-zips.js",
+    "check:presets": "node --no-warnings scripts/check-presets.js"
   },
   "keywords": [
     "login512",

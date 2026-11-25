@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
-const { PRESET_ORDER } = require('../src/presets');
+const { presetIds } = require('../src/presets');
 
 const ROOT = path.join(__dirname, '..');
 const OUT_DIR = path.join(ROOT, 'dist-zips');
@@ -107,7 +107,7 @@ function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const sourceFiles = collectFiles(ROOT);
 
-  for (const presetId of PRESET_ORDER) {
+  for (const presetId of presetIds()) {
     const folderPrefix = `login512-smart-checkin-${presetId}`;
     const entries = sourceFiles.map(({ rel, full }) => {
       let content = fs.readFileSync(full);

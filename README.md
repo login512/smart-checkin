@@ -79,6 +79,14 @@ If you are integrating Login512 into an existing app (ERP, POS, SaaS, LMS), star
 
 ---
 
+## Add Your Own Industry (6th Preset)
+
+A preset is one JSON file. Copy the closest one, change `id` (= file name) and the TH / EN texts, then run `npm run check:presets` and `npm test`. Step by step: [`docs/ADD_A_PRESET.md`](docs/ADD_A_PRESET.md).
+
+## Build On It With AI Agents
+
+[`AGENTS.md`](AGENTS.md) is the guide for Claude Code, Cursor, Codex, Gemini / Antigravity, Copilot and Windsurf: project map, commands, how to extend, and the security rules that must not be broken. With the [Login512 MCP server](https://login512.com/mcp.html) an agent can also call `login512_smart_checkin` to get the presets, downloads and integration pattern.
+
 ## Security Notes for Production
 - Keep `LOGIN512_SECRET_KEY` (`l512_sk_...`) strictly on the server (`.env`).
 - Always serve behind **HTTPS** (mobile browsers require HTTPS for camera & Passkey access).

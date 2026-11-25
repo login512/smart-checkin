@@ -390,3 +390,38 @@ test('7. Genesis on a second install: an already-enrolled Superadmin proves itse
     await srv.close();
   }
 });
+
+test('8. A new industry is one JSON file: presets/<id>.json is picked up after the built-ins and checked', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { loadPresetsFrom, PRESETS_DIR, validatePreset } = require('../src/presets');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-presets-'));
+  try {
+    for (const id of PRESET_ORDER) fs.copyFileSync(path.join(PRESETS_DIR, `${id}.json`), path.join(dir, `${id}.json`));
+    // What docs/ADD_A_PRESET.md tells a person or an AI agent to do: copy a preset, change id and texts.
+    const gym = JSON.parse(fs.readFileSync(path.join(PRESETS_DIR, 'event.json'), 'utf8'));
+    gym.id = 'gym-class';
+    gym.icon = '🏋️';
+    gym.th.name = 'คลาสฟิตเนส';
+    gym.en.name = 'Fitness Class';
+    fs.writeFileSync(path.join(dir, 'gym-class.json'), JSON.stringify(gym, null, 2));
+    // A broken file is reported, not loaded, and does not take the others down.
+    fs.writeFileSync(path.join(dir, 'broken.json'), JSON.stringify({ id: 'broken', icon: 'x', defaultQrRotateSec: 30 }));
+    fs.writeFileSync(path.join(dir, 'not-json.json'), '{ nope');
+
+    const { presets, report } = loadPresetsFrom(dir);
+    assert.deepEqual([...presets.keys()], [...PRESET_ORDER, 'gym-class']);
+    assert.equal(presets.get('gym-class').en.name, 'Fitness Class');
+    const ids = report.map((r) => r.id).sort();
+    assert.deepEqual(ids, ['broken', 'not-json']);
+    const broken = report.find((r) => r.id === 'broken').problems.join(' | ');
+    assert.match(broken, /defaultQrRotateSec must be a whole number from 5 to 8/);
+    assert.match(broken, /"th" texts are missing/);
+
+    // id must match the file name
+    assert.ok(validatePreset({ ...gym, id: 'other' }, 'gym-class').some((m) => m.includes('must equal the file name')));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
