@@ -21,7 +21,7 @@ const sdk = require('@login512/server-sdk');
 class Login512Client {
   constructor(config = {}) {
     this.endpoint = (config.endpoint || process.env.LOGIN512_ENDPOINT || 'https://api.login512.com').replace(/\/+$/, '');
-    this.sdkUrl = config.sdkUrl || process.env.LOGIN512_SDK_URL || 'https://login512.com/sdk/login512-sdk.js';
+    this.sdkUrl = config.sdkUrl || process.env.LOGIN512_SDK_URL || 'https://login512.com/sdk/login512-sdk.js?v=2026.11.25';
     this.publishableKey = (config.publishableKey || process.env.LOGIN512_PUBLISHABLE_KEY || '').trim();
     this.secretKey = (config.secretKey || process.env.LOGIN512_SECRET_KEY || '').trim();
 

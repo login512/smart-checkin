@@ -20,6 +20,7 @@
       qr_rotating_in: 'QR เปลี่ยนรหัสใหม่ใน {sec} วินาที',
       today_count_label: 'เช็กอินวันนี้',
       no_checkins_yet: 'ยังไม่มีรายการเช็กอินวันนี้ — ส่อง QR เพื่อเริ่มต้น',
+      err_ORIGIN_NOT_ALLOWED: 'Login512 ยังไม่อนุญาตเว็บไซต์นี้ ({origin}) ให้เพิ่ม {origin} ในช่อง Allowed Origins ที่ Login512 Portal (หน้าตั้งค่า) แล้วลองใหม่',
       err_QR_EXPIRED: 'QR Code หมดอายุแล้ว (ป้องกันการถ่ายภาพ/วิดีโอคอลส่งต่อ) กรุณาส่องจากหน้าจอ Kiosk ใหม่อีกครั้ง',
       err_QR_INVALID_SIGNATURE: 'ลายเซ็น QR Code ไม่ถูกต้อง กรุณาส่องจากหน้าจอ Kiosk ของจริง',
       err_WIFI_IP_BLOCKED: 'ถูกปฏิเสธ: มือถือของคุณไม่ได้เชื่อมต่อ Wi-Fi ของสถานที่ (กันวิดีโอคอลส่อง QR จากระยะไกล)',
@@ -47,6 +48,7 @@
       qr_rotating_in: 'QR rotates in {sec}s',
       today_count_label: "Today's Check-Ins",
       no_checkins_yet: 'No check-ins yet today — scan the live QR to begin',
+      err_ORIGIN_NOT_ALLOWED: 'Login512 does not allow this website ({origin}) yet. Add {origin} to Allowed Origins in the Login512 Portal (Settings), then try again.',
       err_QR_EXPIRED: 'QR expired (anti-photo/video-call protection). Please scan the live Kiosk screen again.',
       err_QR_INVALID_SIGNATURE: 'Invalid QR signature. Please scan an official Kiosk screen.',
       err_WIFI_IP_BLOCKED: 'Blocked: your device is not on the authorized on-site Wi-Fi network (blocks remote video-call relay).',
@@ -129,7 +131,7 @@
     if (_sdkPromise) return _sdkPromise;
     _sdkPromise = new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = sdkUrl || 'https://login512.com/sdk/login512-sdk.js';
+      s.src = sdkUrl || 'https://login512.com/sdk/login512-sdk.js?v=2026.11.25';
       s.async = true;
       s.onload = () => (global.Login512 ? resolve(global.Login512) : reject(new Error('Login512 SDK loaded without global object')));
       s.onerror = () => reject(new Error(`Failed to load Login512 SDK from ${s.src}`));
@@ -179,6 +181,9 @@
       publishableKey: login512Cfg.publishableKey,
       endpoint: login512Cfg.endpoint,
       locale: getLang(),
+      // Errors Login512 reports while its window stays open (e.g. this site is not in Allowed Origins):
+      // show them on this page too, so nobody is left looking at a screen where "nothing happens".
+      onAuthError: (payload) => showLogin512Problem(payload),
     });
 
     if (action === 'enroll') {
@@ -196,6 +201,27 @@
       nonce: nonce || null,
       presentation: 'modal',
     });
+  }
+
+  function showLogin512Problem(payload) {
+    const code = String((payload && payload.code) || '');
+    // Only problems the site owner must fix; scan results (blink, no match, ...) are already shown in the scan window.
+    if (code !== 'ORIGIN_NOT_ALLOWED' && code !== 'ORIGIN_REQUIRED' && code !== 'BRIDGE_FAILED' && code !== 'CHALLENGE_FAILED') return;
+    const lang = getLang();
+    const key = `err_${code}`;
+    let text = t(key, lang);
+    if (text === key) text = (payload && payload.message) || code;
+    text = text.split('{origin}').join(window.location.origin);
+    let bar = document.getElementById('login512ProblemBar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'login512ProblemBar';
+      bar.setAttribute('role', 'alert');
+      bar.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:2147483646;padding:12px 16px;border-radius:12px;'
+        + 'background:#7f1d1d;color:#fff;font-size:14px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.35);';
+      document.body.appendChild(bar);
+    }
+    bar.textContent = '⚠️ ' + text;
   }
 
   function renderLangToggle(containerEl, currentLang, onChange) {
